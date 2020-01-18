@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cstdio>
 #include <dlfcn.h>
 #include <map>
@@ -10,19 +11,42 @@ extern "C"
 }
 
 namespace ffi {
-	using type = std::vector<ffi_type*>;
-	using value = std::vector<std::unique_ptr<void*>>;
 
-	std::variant<
+	class cif : public ffi_cif {
+		std::vector<ffi_type*> type;
+	public:
+		cif(ffi_type* rtype = &ffi_type_sint, ffi_abi abi = FFI_DEFAULT_ABI)
+		{
+			ffi_cif::abi = abi;
+			ffi_cif::rtype = rtype;
+		}
+		// cif(initialization_list<ffi_type*> args, ffi_type* rtype = &ffi_type_sint, ffi_abi abi = FFI_DEFAULT_ABI)
+		// use nullptr for missing args
+		cif& push(ffi_type* arg)
+		{
+			type.push_back(arg);
+			++ffi_cif::nargs;
+			//??? ffi_cif::arg_types = &type[0];
 
-	class stack {
-		ffi::type type;
-		ffi::value value;
+			return *this;
+		}
+		ffi_status prep()
+		{
+			ffi_cif::arg_types = &type[0];
+
+			return ffi_prep_cif(this, abi, nargs, rtype, &type[0]);
+		}
+		void call(void(*f)(void), ffi_arg* ret, void** vals)
+		{
+			ffi_call(this, f, ret, vals);
+		}
 	};
 
-	std::map<std::string,std::pair<ffi_type*,std::vector<ffi_type*>>> sig = {
+	/*
+	std::map<std::string,ffi_cif> sig = {
 		{"puts", {&ffi_type_sint, {{&ffi_type_pointer}}}}
 	};
+	*/
 
 }
 int test()
@@ -57,23 +81,26 @@ int test()
 	  ffi_call(&cif, FFI_FN(p), &arg, val);
 	}
 
+	{
+		ffi::cif cif(&ffi_type_sint);
+		cif.push(&ffi_type_pointer);
+		assert(FFI_OK == cif.prep());
+
+		void* val[1];
+		const char* s = "Hi";
+		val[0] = &s;
+		ffi_arg arg;
+		cif.call(FFI_FN(p), &arg, &val[0]);
+	}
+
 	dlclose(libc);
 
 	return 0;
 }
-int test_ = test();
-
-template<class T>
-inline std::unique_ptr<void*> make_ptr(const T& t)
-{
-	T* tp = new T(t);
-	return std::unique_ptr<void*>(tp));
-}
 
 int main(int ac, char* av[])
 {
-	double x = 1;
-	auto xp = make_ptr(x);
+	test();
 
 	return 0;
 }

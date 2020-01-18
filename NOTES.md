@@ -1,29 +1,85 @@
-# Foreign Function Interface
-
-fun arg0 arg1 ... argn
-
-push argn, ..., arg1, arg 0 onto call stack and call fun
-
-argn ... arg1 arg0 fun instead?
-
-l: int 0
-w: int 0
-c: int 0
-buf: char[1024]
-rw file.txt fopen -- FILE*
-1024 buf fgets -- char*
-dup 0 =? "fgets failed" perror; errno exit
-ws: " \t\r"
-ws strtok -- char*
-
-rw file.txt fopen -- FILE*
-do # push ftell on control stack
-dup getc -- FILE* int
-dup EOF =? 0 exit; # print l,w,c?
-= EOF 0 exit
-!= EOF
-++c
-dup isspace -- int
-dup 0 !=? ++w # set in space?
-"\n" =? ++l
-TRUE while # pop and fseek top of control stack
+# Foreign Function Interface    
+  
+Call C functions at runtime.  
+  
+reverse order of function arguments  
+  
+include stdio.h [-libc] -- add functions to dictionary  
+  
+-- create _cif_ for a function  
+(FILE*) (const char*) fputs -> int   
+pointer pointer fputs -> int  
+  
+: name # associate name with tos  
+; # calls tos  
+    
+argn ... arg1 arg0 fun # creates a _closure_ on top of stack  
+  
+newline causes args to be safely parsed and put in closure  
+  
+argn ... arg1 arg0 fun ; #  ; calls closure thunk  
+  
+argn ... arg1 arg0 fun : foo # : assigns closure to foo  
+  
+argn ... arg1 arg0 fun ;  
+# same as  
+argn ... arg1 arg0 fun : foo   
+foo  
+  
+argn ... _ arg0 fun : foo # curries arguments  
+  
+creates a closure with cif determined by missing args  
+  
+arg1 foo ; # calls with missing args  
+  
+How to call a function without consuming the stack?  
+  
+-- parser  
+"argn ... _ arg0 fun" -> curried closure for fun  
+  
+Define variables  
+  
+1.23 double : d  
+123 uint32 : ui  
+  
+Push variable onto stack  
+  
+d ;  
+  
+every line is a closure  
+  
+keywords that do not consume the stack  
+  
+=0 <code executes if tos is 0>  
+  
+0 int : l  
+0 int : w  
+0 int : c  
+char[1024] : buf  
+// use {} for scoping to gc???  
+// l ++ : l -- increment l  
+  
+false boolean : inspace ;  
+  
+r file.txt fopen ; -- FILE*    
+while dup getc != EOF { // != EOF does not consume stack "!= x" same as "dup x !="  
+	c ; 1 + : c ; // "++ c" prefix function causes side effect?  
+	if dup isspace ++ w true : inspace else false : inspace ; // "? f ..." execute "..." if f is nonzero  
+	if dup newline ++ l ;  
+	drop -- FILE*  
+}  
+  
+## Control flow  
+  
+while expr {  
+	body  
+}  
+  
+evaluate expr  
+if tos true (!=0) evaluate body  
+else continue  
+  
+  
+# Remarks  
+  
+Use -- for stack comments and actually check the stack  

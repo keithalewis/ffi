@@ -1,7 +1,7 @@
-LDFLAGS = -ldl -lffi
+CXXFLAGS = -g -std=gnu++17
+LDLIBS = -ldl -lffi
 
-ffi: ffi.cpp
-	$(CXX) ffi.cpp   -o ffi $(LDFLAGS)
+ffi:
 
 clean:
 	rm ffi
