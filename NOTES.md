@@ -10,7 +10,7 @@ include stdio.h [-libc] -- add functions to dictionary
 (FILE*) (const char*) fputs -> int   
 pointer pointer fputs -> int  
   
-: name # associate name with tos  
+: name # associate name with tos, pop tos
 ; # calls tos  
     
 argn ... arg1 arg0 fun # creates a _closure_ on top of stack  
@@ -45,6 +45,10 @@ Define variables
 Push variable onto stack  
   
 d ;  
+
+$d
+
+{d}
   
 every line is a closure  
   
@@ -62,6 +66,8 @@ char[1024] : buf
 false boolean : inspace ;  
   
 r file.txt fopen ; -- FILE*    
+if dup NULL == { "failed to open file" perror ; errno exit ; } 
+if == NULL { "failed to open file" perror ; errno exit ; } 
 while dup getc != EOF { // != EOF does not consume stack "!= x" same as "dup x !="  
 	c ; 1 + : c ; // "++ c" prefix function causes side effect?  
 	if dup isspace ++ w true : inspace else false : inspace ; // "? f ..." execute "..." if f is nonzero  
