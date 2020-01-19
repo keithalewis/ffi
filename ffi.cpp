@@ -2,9 +2,11 @@
 #include <cstdio>
 #include <dlfcn.h>
 #include <algorithm>
+#include <deque>
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <stack>
 #include <string>
 #include <valarray>
 #include <variant>
@@ -50,32 +52,23 @@ namespace ffi {
 	template<> struct type_traits<unsigned long>
 		{ static constexpr ffi_type* type = &ffi_type_ulong; };
 
-	using type = std::variant<int, unsigned int, double, char, void*>;
-	//using stack = std::stack<type>;
-	//inline void* address(const type& t);
-
-	template<ffi_type* T>
-	inline type parse(const char* s);
-
-	template<>
-	inline type parse<&ffi_type_double>(const char* s)
-	{
-		char* end;
-		double d = strtod(s, &end);
-		if (d == 0 and s == end) {
-			throw std::runtime_error("parse<double> failed");
-		}
-
-		return type(d);
-	}
-	/*
-	template<>
-	inline type parse<&ffi_type_pointer>(const char* p)
-	{
-		return type(p);
-	}
-	*/
-
+	int ffi_types[] = {
+		FFI_TYPE_VOID,
+		FFI_TYPE_INT,
+		FFI_TYPE_FLOAT,
+		FFI_TYPE_DOUBLE,
+		FFI_TYPE_LONGDOUBLE,
+		FFI_TYPE_UINT8,
+		FFI_TYPE_SINT8,
+		FFI_TYPE_UINT16,
+		FFI_TYPE_SINT16,
+		FFI_TYPE_UINT32,
+		FFI_TYPE_SINT32,
+		FFI_TYPE_UINT64,
+		FFI_TYPE_SINT64,
+		FFI_TYPE_STRUCT,
+		FFI_TYPE_POINTER,
+	};
 	// C interface
 	struct cif : public ffi_cif {
 		cif()
@@ -182,6 +175,10 @@ namespace ffi {
 		fun(const cif& cif, void* fun)
 			: cif_(cif), fun_(fun)
 		{ }
+		fun(const fun&) = default;
+		fun& operator=(const fun&) = default;
+		~fun()
+		{ }
 		// runtime type checked function call
 		template<class... A>
 		R operator()(A... as)
@@ -203,27 +200,164 @@ namespace ffi {
 			return r;
 		}
 	};
+	using type = std::variant<
+		std::monostate,
+		int,
+		float,
+		double,
+		long double,
+		uint8_t,
+		int8_t,
+		uint16_t,
+		int16_t,
+		uint32_t,
+		int32_t,
+		uint64_t,
+		int64_t,
+		std::monostate,
+		void*
+	>;
 
-	//class stack {};
-	class thunk;
-	using stack = std::variant<char,double,int,void*,thunk>;
-	using dictionary = std::map<std::string, thunk>;
-
-	class thunk {
-		const dictionary& d;///
-	public:
-		thunk(const dictionary& d)
-			: d(d)
-		{ }
-		~thunk()
-		{ }
-		void operator()(stack& s)
+	// address of variant alternative
+	struct visitor {
+		const void* operator()(const std::monostate& t) const
 		{
-			// get missing arguments from stack
-			// call function
-			// push result on stack
+			return nullptr;
+		}
+		/*
+		const void* operator()(const void* t) const
+		{
+			return t;
+		}
+		*/
+		template<class T>
+		const void* operator()(const T& t) const
+		{
+			return &t;
 		}
 	};
+	// address of current alternative
+	inline const void* address(const type& t)
+	{
+		return std::visit(visitor{}, t);
+	}
+
+	template<ffi_type* T>
+	inline type parse(const char* s);
+
+	template<>
+	inline type parse<&ffi_type_slong>(const char* s)
+	{
+		char* end;
+		errno = 0;
+		long l = strtol(s, &end, 0);
+		if (0 != errno) {
+			throw std::runtime_error("parse<long> failed");
+		}
+
+		return type(l);
+	}
+	template<>
+	inline type parse<&ffi_type_double>(const char* s)
+	{
+		char* end;
+		errno = 0;
+		double d = strtod(s, &end);
+		if (d == 0 and s == end) {
+			throw std::runtime_error("parse<double> failed");
+		}
+
+		return type(d);
+	}
+	/*
+	template<>
+	inline type parse<&ffi_type_pointer>(const char* p)
+	{
+		return type(p);
+	}
+	*/
+
+	inline const char* skip(const char* b, const char* e)
+	{
+		while (isspace(*b) && b < e)
+			++b;
+
+		return b;
+	}
+	
+	using token_view = std::pair<const char*, const char*>;
+	// Get next white space delimited token
+	inline token_view parse_token(const char* b, const char* e)
+	{
+		assert (b < e);
+
+		bool in_string = false;
+		const char* b_ = skip(b, e);
+		const char* e_;
+
+		if (b_ < e && *b_ == '"') {
+			++b_;
+			in_string = true;
+		}
+
+		e_ = b_;
+		bool done = false;
+		while (!done && e_ < e) {
+			if (!in_string) {
+				if (isspace(*e_)) {
+					done = true;
+				}
+				else {
+					++e_;
+				}
+			}
+			else { // in_string
+				if ('"' == *e_) {
+					done = true;
+				}
+				else if ('\\' == *e_) {
+					++e_;
+					if (e_ < e) {
+						++e_;
+					}
+				}
+				else {
+					++e_;
+				}
+			}
+		}
+
+		if (in_string)
+			assert (*e_ == '"');
+		else
+			assert (e_ == e || isspace(*e_));
+		assert (b <= b_);
+		assert (b_ <= e_);
+		assert (e_ <= e);
+
+		return token_view(b_, e_);
+	}
+
+	using line_view = std::deque<token_view>;
+
+	inline bool empty(const token_view& p)
+	{
+		return p.first + 1 == p.second;
+	}
+	// parse a line into token views
+	inline line_view parse_line(const char* b, const char* e)
+	{
+		line_view lv;
+
+		token_view p = parse_token(b, e);
+		while (!empty(p)) {
+			lv.push_front(p);
+			p = parse_token(p.second + 1, e);
+		}
+
+		return lv;
+	}
+
 
 	class dl {
 		void* lib;
@@ -298,6 +432,20 @@ namespace ffi {
 		{"puts", {&ffi_type_sint, {{&ffi_type_pointer}}}}
 	};
 	*/
+	class thunk {
+		
+	public:
+		thunk()
+		{ }
+		~thunk()
+		{ }
+		void operator()()
+		{
+			// get missing arguments from stack
+			// call function
+			// push result on stack
+		}
+	};
 
 }
 
@@ -391,10 +539,65 @@ int test()
 	return 0;
 }
 
+/*
+class stack {
+	std::vector<type> s;
+public:
+	stack()
+	{}
+};
+
+class thunk;
+
+thunk read_thunk()
+{
+	int c;
+	while (EOF != (c = getc()) {
+	}
+}
+*/
+int test_parse_token()
+{
+	{
+		const char s[] = "";
+		auto [b,e] = ffi::parse_token(s, s + 1);
+		assert (b == s);
+		assert (e == s + 1);
+	}
+	{
+		const char s[] = "";
+		auto [b,e] = ffi::parse_token(s, s + sizeof s);
+		assert (b + 1 == e);
+	}
+	{
+		const char s[] = "a b";
+		auto [b,e] = ffi::parse_token(s, s + sizeof s);
+		assert (std::equal(b, e, "a"));
+	}
+	{
+		const char s[] = " \ta b";
+		auto [b,e] = ffi::parse_token(s, s + sizeof s);
+		assert (std::equal(b, e, "a"));
+	}
+	{
+		const char s[] = "\"a b\" c";
+		auto [b,e] = ffi::parse_token(s, s + sizeof s);
+		assert (std::equal(b, e, "a b"));
+	}
+
+	return 0;
+}
+
 int main(int ac, char* av[])
 {
+	test_parse_token();
 	test_cif();
 	test();
+	/*
+	while (thunk = read_thunk()) {
+		thunk();
+	}
+	*/
 
 	return 0;
 }

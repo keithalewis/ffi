@@ -26,15 +26,6 @@ Create a thunk that knows the stack arguments
 `FFI_DEFAULT_ABI `SINT [ `POINTER ] cif : puts_cif
 
 
-Implicitly specify the signature.  
-
-"Hello World" puts  
-
-
-Use `...` for immediate execution
-
-
-
 compile: stream -> thunk // stream of characters to unit of execution  
 execute: (thunk x dictionary) -> (stack -> stack')  // a thunk and dictionary takes a stack and returns a stack
 
@@ -214,6 +205,14 @@ while (read tok) {
 		call tos
 	}
 }
+
+# Call C Symbol
+
+push(double d);
+...
+call(cos)
+...
+pop()
   
 # Remarks  
   
