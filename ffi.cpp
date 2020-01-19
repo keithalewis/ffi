@@ -51,6 +51,30 @@ namespace ffi {
 		{ static constexpr ffi_type* type = &ffi_type_ulong; };
 
 	using type = std::variant<int, unsigned int, double, char, void*>;
+	//using stack = std::stack<type>;
+	//inline void* address(const type& t);
+
+	template<ffi_type* T>
+	inline type parse(const char* s);
+
+	template<>
+	inline type parse<&ffi_type_double>(const char* s)
+	{
+		char* end;
+		double d = strtod(s, &end);
+		if (d == 0 and s == end) {
+			throw std::runtime_error("parse<double> failed");
+		}
+
+		return type(d);
+	}
+	/*
+	template<>
+	inline type parse<&ffi_type_pointer>(const char* p)
+	{
+		return type(p);
+	}
+	*/
 
 	// C interface
 	struct cif : public ffi_cif {
@@ -151,6 +175,7 @@ namespace ffi {
 
 	template<class R> // return type
 	class fun {
+	    // using R - ...
 		cif cif_;
 		void* fun_;
 	public:
@@ -176,6 +201,27 @@ namespace ffi {
 			ffi_call(&cif_, FFI_FN(fun_), r, v.data());
 
 			return r;
+		}
+	};
+
+	//class stack {};
+	class thunk;
+	using stack = std::variant<char,double,int,void*,thunk>;
+	using dictionary = std::map<std::string, thunk>;
+
+	class thunk {
+		const dictionary& d;///
+	public:
+		thunk(const dictionary& d)
+			: d(d)
+		{ }
+		~thunk()
+		{ }
+		void operator()(stack& s)
+		{
+			// get missing arguments from stack
+			// call function
+			// push result on stack
 		}
 	};
 
