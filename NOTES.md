@@ -6,7 +6,14 @@ Open a dynamic link library.
 
 Load symbols from the library.
 
+Describe its C interface.
+
 Call the function.
+
+compile(string, dictionary) -> thunk
+
+Read chars into input buffer and parse white space delimited tokens.
+Lookup last token and use that to parse prior tokens.
 
 ## Open a dynamically linked library and give it a name.  
 
