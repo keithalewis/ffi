@@ -23,8 +23,12 @@ inline bool equal(const token_view& v, const char* s)
 int test_skip_space()
 {
 	{
+		char t[] = "";
+		assert (t == endof(t));
+		assert (*endof(t) == 0);
+	}
+	{
 		char t[] = " \t\f";
-		size_t n = sizeof(t);
 		auto e = skip_space(t, endof(t));
 		assert (e == endof(t));
 	}
@@ -36,7 +40,7 @@ int test_skip_space()
 	{
 		char t[] = " \tabc";
 		auto e = skip_space(t, endof(t));
-		assert (*e == t[2]);
+		assert (e == t + 2);
 	}
 
 	return 0;
@@ -58,7 +62,7 @@ int test_next_quote()
 	{
 		char t[] = "\" a";
 		auto e = next_quote(t, endof(t));
-		assert (e == t + 1);
+		assert (e == nullptr);
 	}
 	{
 		char t[] = "a\"a";
@@ -66,14 +70,14 @@ int test_next_quote()
 		assert (e == nullptr);
 	}
 	{
-		char t[] = "a\" a";
+		char t[] = "a\" a\"";
 		auto e = next_quote(t, endof(t));
-		assert (e == t + 1);
+		assert (e == nullptr);
 	}
 	{
-		char t[] = "a \"";
+		char t[] = "\"a \"";
 		auto e = next_quote(t, endof(t));
-		assert (e == t + 2);
+		assert (e == endof(t));
 	}
 
 	return 0;
@@ -83,20 +87,9 @@ int test_next_quote_ = test_next_quote();
 int test_next_match()
 {
 	{
-		char t[] = "";
-		assert (*endof(t) == 0);
-		auto e = next_match(t, endof(t));
-		assert (e == nullptr);
-	}
-	{
 		char t[] = "{}";
 		auto e = next_match(t, endof(t));
-		assert (e - t  == 2);
-	}
-	{
-		char t[] = "{{";
-		auto e = next_match(t, endof(t));
-		assert (e == nullptr);
+		assert (e == t + 2);
 	}
 	{
 		char t[] = "{{";
@@ -122,6 +115,7 @@ int test_parse_token()
 {
 	{
 		char s[] = "";
+		assert (s == endof(s));
 		auto t = parse_token(s, endof(s));
 		assert (empty(t));
 	}
@@ -129,81 +123,102 @@ int test_parse_token()
 		char s[] = "a";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 	{
 		char s[] = "a b";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "b"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 	{
 		char s[] = "a b ";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "b"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 	{
 		char s[] = "\ta \fb ";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "b"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 	{
 		char s[] = "\ta \f\"b\" ";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
-		print(t);
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "\"b\""));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 	{
 		char s[] = "a \\\"b\\\" {c}";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "\\\"b\\\""));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "{c}"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 	{
 		char s[] = "a \\\"b\\\" {c {d} e}";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "\\\"b\\\""));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (equal(t, "{c {d} e}"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 	{
-		char s[] = "a \\\"b b\\\" {c {d} e}";
+		char s[] = "a \"b b\" {c {d} e}";
 		auto t = parse_token(s, endof(s));
 		assert (equal(t, "a"));
-		t = parse_token(t.second + 1, endof(s));
-		print(t);
-		assert (equal(t, "\\\"b b\\\""));
+		t = parse_token(t.second, endof(s));
+		assert (equal(t, "\"b b\""));
 		t = parse_token(t.second + 1, endof(s));
 		assert (equal(t, "{c {d} e}"));
-		t = parse_token(t.second + 1, endof(s));
+		t = parse_token(t.second, endof(s));
 		assert (empty(t));
 	}
 
 	return 0;
 }
 int test_parse_token_ = test_parse_token();
+
+int test_parse_line()
+{
+	{
+		char s[] = "a \"b c\" {d}";
+		auto v = parse_line(s, endof(s));
+		assert (v.size() == 3);
+		assert (equal(v[0], "a"));
+		assert (equal(v[1], "\"b c\""));
+		assert (equal(v[2], "{d}"));
+	}
+	{
+		char s[] = "a \"b c\"{d}";
+		auto v = parse_line(s, endof(s));
+		assert (v.size() == 3);
+		assert (equal(v[0], "a"));
+		assert (equal(v[1], "\"b c\""));
+		assert (error(v[2]));
+	}
+
+	return 0;
+}
+int test_parse_line_ = test_parse_line();
