@@ -9,6 +9,12 @@ namespace ffi {
 
 	using token_view = std::pair<const char*, const char*>;
 
+	inline bool empty(const token_view& v)
+	{
+		return v.first == v.second;
+	}
+
+	// skip space or nonspace
 	inline const char* skip_space(const char* b, const char* e, bool space = true)
 	{
 		while (b < e and (space ? isspace(*b) : !isspace(*b))) {
@@ -35,7 +41,17 @@ namespace ffi {
 			}
 		}
 
-		return b == e ? nullptr : b; // b == e if no next quote
+		assert (b == e || *b == q);
+
+		if (b == e) {
+			return nullptr; // not found
+		}
+
+		++b; // skip quote
+		if (b < e && !isspace(*b))
+			return nullptr;
+
+		return b;
 	}
 	inline const char* next_quote(const token_view& v, const char q = '"')
 	{
@@ -54,22 +70,19 @@ namespace ffi {
 		while (level != 0  && b < e) {
 			if (*b == '\\') {
 				++b;
-				if (b < e)
-					++b;
 			}
 			else {
 				if (*b == l)
 					++level;
 				else if (*b == r)
 					--level;
-				++b;
 			}
+
+			if (b < e)
+				++b;
 		}
 
-		if (level != 0)
-			return nullptr;
-
-		return b;
+		return level == 0 ? b : nullptr;
 	}
 	inline const char* next_match(const token_view& v, char l = '{', char r = '}')
 	{
@@ -87,26 +100,27 @@ namespace ffi {
 		}
 
 		if (*b == '"') {
-			++b;
-			e_ = next_quote(b, e);
-
-			return token_view(e_ == nullptr ? e_ : b, e_);
+			e_ = next_quote(b + 1, e);
 		}
-
-		if (*b == '{') {
+		else if (*b == '{') {
 			e_ = next_match(b, e);
-
-			return token_view(e_ == nullptr ? e_ : b, e_);
+		}
+		else {
+			e_ = skip_space(b, e, false);
 		}
 
-		e_ = skip_space(b, e, false);
-
-		return token_view(b, e_);
+		return token_view(e_ == nullptr ? e_ : b, e_);
 	}
 
 	inline std::vector<token_view> parse_line(const char* b, const char* e)
 	{
 		std::vector<token_view> v;
+
+		token_view t = parse_token(b, e);
+		while (!empty(t)) {
+		 	v.push_back(t);
+			t = parse_token(t.second + 1, e);
+		}
 
 		return v;
 	}
