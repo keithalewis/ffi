@@ -133,61 +133,6 @@ int test_cif()
 
 int test()
 {
-	ffi::dl libc("libc.so.6", RTLD_LAZY);
-	if (!libc) {
-		perror(dlerror());
-	}
-	typedef int(*pf)(const char*);
-	auto p = (pf)libc.sym("puts");
-	p("hello world");
-
-	ffi_cif cif;
-	ffi_type* type[1];
-	void* val[1];
-	ffi_arg arg;
-
-	type[0] = &ffi_type_pointer;
-	const char* s;
-	val[0] = &s;
-	if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, 
-				   &ffi_type_sint, type) == FFI_OK)
-	{
-	  s = "Hello World!";
-	  ffi_call(&cif, FFI_FN(p), &arg, val);
-	  /* arg now holds the result of the call to puts */
-	  
-	  /* values holds a pointer to the function's arg, so to 
-		 call puts() again all we need to do is change the 
-		 value of s */
-	  s = "This is cool!";
-	  ffi_call(&cif, FFI_FN(p), &arg, val);
-	}
-
-	{
-		ffi::cif cif({&ffi_type_pointer}, &ffi_type_sint);
-		assert(FFI_OK == cif.prep());
-
-		void* val[1];
-		const char* s = "Hi";
-		val[0] = &s;
-		ffi_arg arg;
-		cif.call(FFI_FN(p), &arg, &val[0]);
-	}
-	// example of ffi_call on a closure
-	// insert missing args and call
-
-	dlclose(libc);
-
-	{
-		ffi::dl libc("libc.so.6");
-		ffi::fun<int> puts_(dlsym(libc, "puts"));
-		//ffi::sym<int> puts_(libc, "puts");
-		const char* s = "Hello";
-		puts_(s);
-		s = " there";
-		puts_(s);
-		puts_("you");
-	}
 	{
 		ffi::dl libm("libm.so");
 		ffi::fun<double> hypot_(dlsym(libm, "hypot"));

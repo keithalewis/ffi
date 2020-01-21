@@ -113,17 +113,17 @@ namespace ffi {
 		{
 			return ffi_prep_cif(this, abi, nargs, rtype, arg_types);
 		}
-		void call(void(*f)(void), void* ret, void** vals) const
+		void call(void* f, void* ret, void** vals) const
 		{
-			ffi_call(const_cast<cif*>(this), f, ret, vals);
+			ffi_call(const_cast<cif*>(this), FFI_FN(f), ret, vals);
 		}
 		template<class R>
-		R call(void(*f)(void), void** vals) const
+		R call(void* f, void** vals) const
 		{
 			R r;
 			void* ret = &r;
 
-			ffi_call(const_cast<cif*>(this), f, ret, vals);
+			ffi_call(const_cast<cif*>(this), FFI_FN(f), ret, vals);
 
 			return r;
 		}
@@ -138,22 +138,35 @@ namespace ffi {
 		thunk(const ffi::cif cif, void* f)
 			: ffi::cif(cif), f(f)
 		{ }
-		/*
 		bool operator==(const thunk& t) const
 		{
-			return f == t.f && cif == t.cif;
+			return f == t.f && cif::operator==(t);
 		}
 		bool operator<(const thunk& t) const
 		{
 			if (f < t.f)
 				return true;
 
-			return cif < t.cif;
+			return cif::operator<(t);
 		}
-		*/
+		ffi_type* return_type() const
+		{
+			return rtype;
+		}
+		std::size_t arity() const
+		{
+			return nargs;
+		}
+		ffi_type* type(std::size_t i) const
+		{
+			if (i >= nargs)
+				return nullptr;
+
+			return arg_types[i];
+		}
 		void call(void* ret, void** vals) const
 		{
-			cif::call(FFI_FN(f), ret, vals);
+			cif::call(f, ret, vals);
 		}
 	};
 
@@ -181,7 +194,7 @@ namespace ffi {
 
 		void call(void* ret, void** vals) const
 		{
-			cif_.call(FFI_FN(fun_), ret, vals);
+			cif_.call(fun_, ret, vals);
 		}
 		R call(void** vals) const
 		{
@@ -230,6 +243,10 @@ namespace ffi {
 			a.insert(a.begin(), ffi::address(*i));
 
 			return *this;
+		}
+		std::size_t size() const
+		{
+			return v.size();
 		}
 		stack& pop(size_t n = 1)
 		{
