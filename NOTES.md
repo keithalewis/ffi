@@ -10,10 +10,36 @@ Describe its C interface.
 
 Call the function.
 
-compile(string, dictionary) -> thunk
+Dictionary of symbol names to function + signature = thunk.  
 
-Read chars into input buffer and parse white space delimited tokens.
-Lookup last token and use that to parse prior tokens.
+A thunk calls arguments on the stack.  
+
+Stack arguments are variants. Thunks knows types.
+
+An input line of the form  
+
+argn ... arg1 name
+
+causes the interpreter to lookup name in dictionary, push args on stack, and call function  
+some args might already be on the stack  
+
+if an arg is "{arg ... arg name}" then it gets replaced by result of evaluting {...}  
+name can use the stack and the dictionary  
+
+An input line of the form  
+
+argn ... arg1 name : var    
+
+adds var to dictionary with current args (including stack) and the thunk corresponding to name.
+Any arg of the form "{...}" is pushed as a string without evaluation
+
+... if # execute until end if tos is true
+...
+end
+
+... while # store ... as string, evaluate and execute until end while true
+...
+end
 
 ## Open a dynamically linked library and give it a name.  
 
@@ -258,6 +284,26 @@ drop 2 -- [empty]
 buf: char[1024]
 snprintf &buf 1024 "%d %d %d" *l *w *c 
 
+## fun args...
+
+Read fun, lookup in dict, push args on stack in reverse order, call fun
+
+c: int 0
+fopen file.txt r -- FILE*
+fgetc ` -- FILE* char
+while == ` *EOF {
+	++ @c
+	if isspace ` {
+		incr @w
+	}
+	elseif == '\n' {
+		incr @l
+	}
+	fgetc `
+}
+
+
+# Call C Symbol
 
 # Remarks  
   
