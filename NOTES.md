@@ -213,14 +213,52 @@ while (read tok) {
 	}
 }
 
-# Call C Symbol
+load: storage_class_specifier? type_specifier identifier '(' [type_specifier identifier]* ')' ';'
 
-push(double d);
-...
-call(cos)
-...
-pop()
-  
+
+# get_token "a b c" " " -> "a" "b c"
+get_token str brk : {
+	rest: strpbrk str brk -- " b c"
+	- str -- 1 is the pointer difference
+	rest
+	string str `1 
+}
+
+storage_class_specifier: { -- pointer
+	strpbrk ` " \t\f\r\n" -- pointer pointer
+	assert != 0
+	drop --
+}
+type_specifier: { -- pointer
+	strpbrk ` " \t\f\r\n" -- pointer pointer
+	assert != ` 0
+	swap
+	...
+}
+
+load "int fgetc(FILE *stream)"
+
+
+c: int 0
+w: int 0
+l: int 0
+fopen file.txt r -- FILE*
+fgetc ` -- FILE* char
+while != ` *EOF {
+	incr @c
+	if isspace ` {
+		incr @w # ignore multiple space
+	}
+	elseif == ` '\n' {
+		incr @l
+	}
+	fgetc ` -- FILE* char
+}
+drop 2 -- [empty]
+buf: char[1024]
+snprintf &buf 1024 "%d %d %d" *l *w *c 
+
+
 # Remarks  
   
 Use -- for stack comments and actually check the stack  
