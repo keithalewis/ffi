@@ -12,6 +12,8 @@ int test_dl()
 	double (*sin_)(double) = (double(*)(double))libm.sym("sin");
 	assert (sin_(0) == 0);
 
+	// void* cif = dlsym(RTLD_DEFAULT, "ffi_cif_prep");
+
 	return 0;
 }
 int test_dl_ = test_dl();

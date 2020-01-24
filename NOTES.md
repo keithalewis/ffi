@@ -18,7 +18,9 @@ Stack arguments are variants. Thunks knows types.
 
 An input line of the form  
 
-argn ... arg1 name
+name arg1 ...
+
+looks up name, uses its cif to push args on the stack, and calls name to consume the stack
 
 causes the interpreter to lookup name in dictionary, push args on stack, and call function  
 some args might already be on the stack  
@@ -28,20 +30,11 @@ name can use the stack and the dictionary
 
 An input line of the form  
 
-argn ... arg1 name : var    
+var: name arg1 ...    
 
 adds var to dictionary with current args (including stack) and the thunk corresponding to name.
+
 Any arg of the form "{...}" is pushed as a string without evaluation
-
-... if # execute until end if tos is true
-...
-end
-
-... while # store ... as string, evaluate and execute until end while true
-...
-end
-
-## Open a dynamically linked library and give it a name.  
 
 $RTLD_LAZY libc.so.6 dlopen : libc -- pointer // document it is a pointer
 $RTLD_LAZY libc.so.6 dlopen : libc == pointer //makes sure libc is a pointer
@@ -288,19 +281,29 @@ snprintf &buf 1024 "%d %d %d" *l *w *c
 
 Read fun, lookup in dict, push args on stack in reverse order, call fun
 
+dictionary name -> thunk x type
+
 c: int 0
-fopen file.txt r -- FILE*
-fgetc ` -- FILE* char
-while == ` *EOF {
-	++ @c
-	if isspace ` {
-		incr @w
+file: fopen file.txt r
+char: fgetc file
+inspace: bool false
+while == char EOF {
+	incr c
+	if == char '\n' {
+		incr l
 	}
-	elseif == '\n' {
-		incr @l
+	if isspace char {
+		if ! inspace {
+			incr w
+			inspace: true
+		}
 	}
-	fgetc `
+	else {
+		inspace: false
+	}
+	char: fgetc file
 }
+printf "%d %d %d\n" l w c
 
 
 # Call C Symbol

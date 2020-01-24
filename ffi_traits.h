@@ -7,9 +7,11 @@ extern "C"
 #include <cerrno>
 #include <charconv>
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 //    FFI_TYPE             type          ffi_type             variant         size
 #define FFI_TYPE_TABLE(X) \
@@ -33,6 +35,13 @@ extern "C"
 
 namespace ffi {
 
+	using token_view = std::pair<const char*, const char*>;
+	inline token_view make_view(const char* s)
+	{
+		return token_view(s, s + strlen(s));
+	}
+
+	// stack types
 #define X(a,b,c,d) d,
 	using type = std::variant<
 		FFI_TYPE_TABLE(X)
@@ -64,7 +73,6 @@ namespace ffi {
 
 	template<class T>
 	struct type_traits { static ffi_type* type; };
-
 	// pointers
 	template<class T> struct type_traits<T[]>
 		{ static constexpr ffi_type* type = &ffi_type_pointer; };
@@ -82,7 +90,6 @@ namespace ffi {
 	// type and storage size of ffi_type
 	template<ffi_type* T>
 	struct traits_type { static constexpr std::size_t size = 0; };
-
 #define X(a,b,c,d) template<> struct traits_type<c> { \
 	typedef b type; if constexpr (!std::is_void_v<b>) \
 		static constexpr std::size_t size = 0; \
@@ -91,17 +98,107 @@ namespace ffi {
 #undef X
 
 	template<class T>
+	inline auto from_chars(const token_view& p)
+		-> std::enable_if_t<std::is_void_v<T>, type>
+	{
+		return type{};
+	}
+
+	template<class T>
+	inline auto from_chars(const token_view& p)
+		-> std::enable_if_t<std::is_integral_v<T>, type>
+	{
+		T t;
+		const auto [b, e] = p;
+
+		std::from_chars_result result = std::from_chars(b, e, t, 0);
+		//!!!check over/under flow
+		if (result.ptr == b) {
+			throw result.ec;
+		}
+
+		return type{t};
+	}
+	/* Does not work in gcc
+	template<class T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
+	inline type from_chars(const token_view& p)
+	{
+		T t;
+		const auto [b, e] = p;
+
+		std::from_chars_result result = std::from_chars(b, e, t);
+		if (result.ptr == b) {
+			throw result.ec;
+		}
+
+		return type{t};
+	}
+	*/
+	template<class T>
+	inline auto from_chars(const token_view& p)
+		-> std::enable_if_t<std::is_same<T,float>::type, type>
+	{
+		const auto [b, e] = p;
+
+		return type{strtof(std::string(b, e).c_str(), nullptr)};
+	}
+
+	template<class T>
+	inline auto from_chars(const token_view& p)
+		-> std::enable_if_t<std::is_same<T,double>::type, type>
+	{
+		const auto [b, e] = p;
+
+		return type{strtod(std::string(b, e).c_str(), nullptr)};
+	}
+
+	template<class T>
+	inline auto from_chars(const token_view& p)
+		-> std::enable_if_t<std::is_same<T,void*>::type, type>
+	{
+		const auto [b, e] = p;
+
+		return type{std::string(b, e)};
+	}
+
+	inline type parse(const ffi_type* t, const token_view& p)
+	{
+		const auto [b, e] = p;
+
+		if (&ffi_type_void == t) {
+			return type{}; // monostate
+		}
+		if (&ffi_type_sint == t) {
+			int t;
+
+			std::from_chars_result result = std::from_chars(b, e, t, 0);
+			//!!!check over/under flow
+			if (result.ptr == b) {
+				throw result.ec;
+			}
+
+			return type{t};
+		}
+
+		throw std::runtime_error("ffi::parse: unknown type");
+
+		return type{};
+	}
+
+		/*
+	template<class T>
 	inline T parse(const char* b, const char* e)
 	{
 		T t;
-		std::from_chars_result result;
 
+		if constexpr (std::is_void_v<T>)
+			return;
 		//!!!gcc workaround
 		if constexpr (std::is_same<T,double>::value)
 			return strtod(b, NULL); //!!!no error checking
-		else if constexpr (std::is_same<T,float>::value)
+		if constexpr (std::is_same<T,float>::value)
 			return strtof(b, NULL); //!!!no error checking
-		else if constexpr (std::is_integral<T>::value)
+		if constexpr (std::is_integral<T>::value)
 			result = std::from_chars(b, e, t, 0);
 		else
 			result = std::from_chars(b, e, t);
@@ -113,7 +210,55 @@ namespace ffi {
 		return t;
 	}
 
-	using token_view = std::pair<const char*, const char*>;
+	template<class T>
+	inline T parse(const token_view& p)
+	{
+		const auto [b, e] = p;
+
+	template<>
+	inline type from_chars<float>(const token_view& p)
+	{
+		
+	}
+
+	inline type parse(const ffi_type* t, const token_view& p)
+	{
+		const auto [b, e] = p;
+
+		if (&ffi_type_void == t) {
+			return type{};
+		}
+		if (&ffi_type_sint == t) {
+			return from_char<int>(p);
+		}
+
+		return type{};
+	}
+
+		/*
+	template<class T>
+	inline T parse(const char* b, const char* e)
+	{
+		T t;
+
+		if constexpr (std::is_void_v<T>)
+			return;
+		//!!!gcc workaround
+		if constexpr (std::is_same<T,double>::value)
+			return strtod(b, NULL); //!!!no error checking
+		if constexpr (std::is_same<T,float>::value)
+			return strtof(b, NULL); //!!!no error checking
+		if constexpr (std::is_integral<T>::value)
+			result = std::from_chars(b, e, t, 0);
+		else
+			result = std::from_chars(b, e, t);
+
+		if (result.ptr != e) {
+			throw std::runtime_error("ffi::parse: incomplete match");
+		}
+
+		return t;
+	}
 
 	template<class T>
 	inline T parse(const token_view& p)
@@ -122,26 +267,12 @@ namespace ffi {
 
 		return parse<T>(b, e);
 	}
+		*/
 
-	//!!!use sting_view instead of token_view
-	inline const std::string_view make_view(const token_view& v)
-	{
-		return std::string_view(v.first, v.second - v.first);
-	}
-
-	// use {code} to push pointers
-	inline type parse(const token_view& p, ffi_type* t)
-	{
-		if (t == &ffi_type_pointer) {
-			// if first char is { then execute code
-			return type(std::string(p.first, p.second));
-		}
-		
-#define X(a,b,c,d) if (t == c) if constexpr (!std::is_void_v<b> && !std::is_same_v<b,void*>) return type(d{});
+/*
+#define X(a,b,c,d) if constexpr (std::is_same_v<b,double>) { if (t == c) return parse<b>(p); }
 		FFI_TYPE_TABLE(X);
 #undef X
-
-		return type{}; // first element is std::monostate
-	}
+*/
 
 }

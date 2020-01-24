@@ -131,7 +131,7 @@ int test_cif()
 	return 0;
 }
 
-int test()
+int test_dl()
 {
 	{
 		ffi::dl libm("libm.so");
@@ -198,15 +198,29 @@ int test_parse_token()
 	return 0;
 }
 
+int test_parse()
+{
+	using ffi::token_view;
+	using ffi::type;
+
+	type t;
+	const char s[] = "data";
+	t = ffi::parse(&ffi_type_void, token_view(s, s + sizeof(s)));
+
+	return 0;
+}
+
 std::map<std::string, ffi::thunk> ffi_dictionary;
 ffi::stack ffi_stack;
 
 int main(int ac, char* av[])
 {
-	test_parse_token();
 	test_cif();
-	test();
+	test_parse_token();
+	test_parse();
+	test_dl();
 
+	/*
 	ffi::dl libc("libc.so.6");
 	auto puts_ = dlsym(libc, "puts");
 	ffi_dictionary["puts"] = ffi::thunk(ffi::cif({&ffi_type_pointer}, &ffi_type_sint), puts_);
@@ -232,8 +246,10 @@ int main(int ac, char* av[])
 		int r;
 		void* ret = &r;
 		t.call(ret, ffi_stack.address());
+		// push r 
 
 	}
+	*/
 
 	return 0;
 }
