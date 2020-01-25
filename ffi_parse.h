@@ -14,12 +14,6 @@ namespace ffi {
 		return v.first == v.second;
 	}
 
-	// v.first points at bad parse
-	inline bool error(const token_view& v)
-	{
-		return v.second == nullptr;
-	}
-
 	// end of token boundary
 	inline bool boundary(const char* b, const char* e)
 	{
@@ -29,8 +23,9 @@ namespace ffi {
 	// skip space or nonspace
 	inline const char* skip_space(const char* b, const char* e, bool space = true)
 	{
-		if (b >= e)
-			return nullptr;
+		if (b >= e) {
+			throw std::runtime_error("skip_space: invalid character range");
+		}
 
 		while (b < e and (space ? isspace(*b) : !isspace(*b))) {
 			++b;
@@ -49,18 +44,20 @@ namespace ffi {
 	// return pointer past matching right delimiter
 	inline const char* next_match(const char* b, const char* e, char l = '{', char r = '}')
 	{
-		if (b >= e)
-			return nullptr;
+		if (b >= e) {
+			throw std::runtime_error("nest_match: invalid character range");
+		}
 
-		if (*b != l)
-			return nullptr;
+		if (*b != l) {
+			throw std::runtime_error("next_match: token does not start with left delimiter");
+		}
 
 		std::size_t level = 1;
 		while (++b < e && level != 0) {
 			if (*b == '\\') {
 				++b;
 				if (b == e)
-					return nullptr;
+					throw std::runtime_error("next_match: unmatched right delimiter");
 			}
 			else {
 				if (*b == r)
@@ -70,7 +67,11 @@ namespace ffi {
 			}
 		}
 
-		return level == 0 ? b : nullptr;
+		if (level != 0) {
+			throw std::runtime_error("next_match: delimiter level mismatch");
+		}
+
+		return b;
 	}
 	inline const char* next_match(const token_view& v, char l = '{', char r = '}')
 	{
@@ -88,14 +89,11 @@ namespace ffi {
 
 	inline token_view parse_token(const char* b, const char* e)
 	{
-		if (b == nullptr)
-			return token_view(e, nullptr);
+		if (b > e)
+			throw std::runtime_error("parse_token: invalid character range");
 
 		if (b == e)
 			return token_view(b, e);
-
-		if (b > e)
-			return token_view(b, nullptr); // error
 
 		const char* e_;
 
@@ -108,7 +106,7 @@ namespace ffi {
 			e_ = next_quote(b, e);
 		}
 		else if (*b == '{') {
-			e_ = next_match(b, e);
+			e_ = next_match(b, e, *b, '}');
 		}
 		else {
 			e_ = skip_space(b, e, false);
@@ -127,6 +125,7 @@ namespace ffi {
 			v.push_back(t);
 
 			if (!boundary(t.second, e)) {
+				// error
 				v.push_back(token_view(t.second, nullptr));
 
 				break;

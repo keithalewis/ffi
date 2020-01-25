@@ -12,94 +12,9 @@
 #include <valarray>
 #include <variant>
 #include <vector>
+#include "ffi_parse.h"
 #include "ffi_fun.h"
 #include "ffi_dl.h"
-
-namespace ffi {
-
-	inline const char* skip_space(const char* b, const char* e)
-	{
-		while (b < e && isspace(*b))
-			++b;
-
-		return b;
-	}
-	
-	// Get next white space delimited token
-	inline token_view parse_token(const char* b, const char* e)
-	{
-		if (0 == *b || b == e) {
-			return token_view(e,e);
-		}
-
-		bool in_string = false;
-		const char* b_ = b;
-		while (b_ < e && isspace(*b_)) {
-			++b_;
-		}
-
-		if (b_ < e && *b_ == '"') {
-			++b_; // keep leading '"' ?
-			in_string = true;
-		}
-		const char* e_ = b_;
-
-		bool done = false;
-		while (e_ < e && !done) {
-			if (!in_string) {
-				if (isspace(*e_)) {
-					done = true;
-				}
-				else {
-					++e_;
-				}
-			}
-			else { // in_string
-				if ('"' == *e_) {
-					done = true;
-				}
-				else if ('\\' == *e_) {
-					++e_;
-					if (e_ < e) {
-						++e_;
-					}
-				}
-				else {
-					++e_;
-				}
-			}
-		}
-
-		if (in_string && *e_ != '"') {
-			throw std::runtime_error("token_view: string quote not matched");
-		}
-
-		return token_view(b_, e_);
-	}
-
-	using line_view = std::vector<token_view>;
-
-	inline bool empty(const token_view& p)
-	{
-		return p.first == p.second;
-	}
-
-	// parse a line into token views
-	inline line_view parse_line(const char* b, const char* e)
-	{
-		line_view lv;
-
-		token_view p = parse_token(b, e);
-		while (!empty(p)) {
-			lv.push_back(p);
-			p = parse_token(p.second + 1, e);
-		}
-
-		return lv;
-	}
-
-
-}
 
 int test_cif()
 {
@@ -210,46 +125,30 @@ int test_parse()
 	return 0;
 }
 
+using namespace ffi;
 std::map<std::string, ffi::thunk> ffi_dictionary;
 ffi::stack ffi_stack;
 
 int main(int ac, char* av[])
 {
-	test_cif();
-	test_parse_token();
-	test_parse();
-	test_dl();
+	// read from stdin
+	int lineno = 0;
 
-	/*
-	ffi::dl libc("libc.so.6");
-	auto puts_ = dlsym(libc, "puts");
-	ffi_dictionary["puts"] = ffi::thunk(ffi::cif({&ffi_type_pointer}, &ffi_type_sint), puts_);
+	try {
+		std::string line;
+		while (std::getline(std::cin, line)) {
+			++lineno;
+			std::cout << ">" << line << "<" << std::endl;
 
-	std::string line;
-	while (std::getline(std::cin, line)) {
-		std::cout << ">" << line << "<" << std::endl;
-
-		ffi::line_view v = ffi::parse_line(line.c_str(), line.c_str() + line.length());
-
-		auto key = v.back();
-		auto ent = ffi_dictionary.find(std::string(key.first, key.second));
-		if (ent == ffi_dictionary.end()) {
-			std::cerr << "entry not found: " << ent->first << std::endl;
-			return 1;
+			std::vector<token_view> v = ffi::parse_line(line.c_str(), line.c_str() + line.length());
+			for (const auto& t : v) {
+				std::cout << ">" << std::string_view(t.first, t.second - t.first) << "<" << std::endl;
+			}
 		}
-		const auto& t = ent->second;
-
-		for (size_t i = 0; i < t.nargs; ++i) {
-			ffi_stack.push(ffi::parse(v[i], t.arg_types[i]));
-		}
-
-		int r;
-		void* ret = &r;
-		t.call(ret, ffi_stack.address());
-		// push r 
-
 	}
-	*/
+	catch (const std::exception& ex) {
+		std::cerr << "exception: " << ex.what() << std::endl;
+	}
 
 	return 0;
 }
