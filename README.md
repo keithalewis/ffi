@@ -3,29 +3,39 @@
 A simple scripting language for loading C functions by specifying the library
 they belong to, the name of the symbol, and its signature.
 
+This requires some low level bit diddling.
+
 It uses [libffi](https://github.com/libffi/libffi).
-The primary data structure is `ffi_cif` which stands for C interface.
+The primary data structure is `ffi_cif` which stands for ffi C interface.
 
-The C interface desribes the return value and arguments of a function.
-The `libffi` library also needs to know about how to push arguments on
-the call stack and clean up after calling a function: the Application
-Binary Interface.
+The C interface describes the return value, the arguments of a function,
+and the application binary interface. The ABI specifies how arguments
+are pushed on the call stack and cleaned up after the function returns.
 
-To load any C function at runtime from a libray use
+To load any C symbol at runtime from a library use
 
 ```
--llib sym ret arg ...
+-llibrary symbol return type ... [abi]
 ```
 
+where `return` is the type returned by the function, `type...` are the types to be passed
+to the function, and  abi` is an optional argument specifying the application binary interface.
+By default it uses the ...
 
+The `types are limited to ...
+This is all that is needed by assembly code to ...
 
-Call C functions at runtime.  
+```
+-lm cos double double
+```
 
-Open a dynamic link library.
+Now `cos` can be called in a `ffi` script.
 
-Load symbols from the library.
+```
+cos 0
+```
 
-Describe its C interface.
+The result is pushed onto a stack.
 
-Call the function.
-
+.n pull out the n-th stack item
+,n roll n-th stack item to top
