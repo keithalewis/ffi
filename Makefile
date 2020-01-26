@@ -16,6 +16,6 @@ test: ffi.t
 clean:
 	@rm ffi ffi.t
 
-ffi: ffi.cpp ffi_fun.h ffi_traits.h ffi_parse.h
+ffi: ffi.cpp ffi_cif.h ffi_traits.h ffi_parse.h
 
-ffi.t: ffi.t.cpp ffi_parse.t.cpp ffi_parse.h ffi_dl.t.cpp ffi_dl.h ffi_parse.h
+ffi.t: ffi.t.cpp ffi_parse.t.cpp ffi_parse.h ffi_dl.t.cpp ffi_dl.h ffi_parse.t.cpp ffi_parse.h

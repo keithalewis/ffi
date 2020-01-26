@@ -8,7 +8,9 @@ extern "C"
 #include <charconv>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -35,12 +37,6 @@ extern "C"
 
 namespace ffi {
 
-	using token_view = std::pair<const char*, const char*>;
-	inline token_view make_view(const char* s)
-	{
-		return token_view(s, s + strlen(s));
-	}
-
 	// stack types
 #define X(a,b,c,d) d,
 	using type = std::variant<
@@ -48,6 +44,13 @@ namespace ffi {
 		std::string
 	>;
 #undef X
+
+	// map from string name to ffi_type
+	inline std::map<std::string, ffi_type*> type_map = {
+#define X(a,b,c,d) {std::string(#b), c},
+		FFI_TYPE_TABLE(X)
+#undef X
+	};
 
 	// address of variant alternative
 	struct visitor {
@@ -97,93 +100,6 @@ namespace ffi {
 	FFI_TYPE_TABLE(X)
 #undef X
 
-	template<class T>
-	inline auto from_chars(const token_view& p)
-		-> std::enable_if_t<std::is_void_v<T>, type>
-	{
-		return type{};
-	}
-
-	template<class T>
-	inline auto from_chars(const token_view& p)
-		-> std::enable_if_t<std::is_integral_v<T>, type>
-	{
-		T t;
-		const auto [b, e] = p;
-
-		std::from_chars_result result = std::from_chars(b, e, t, 0);
-		//!!!check over/under flow
-		if (result.ptr == b) {
-			throw result.ec;
-		}
-
-		return type{t};
-	}
-	/* Does not work in gcc
-	template<class T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
-	inline type from_chars(const token_view& p)
-	{
-		T t;
-		const auto [b, e] = p;
-
-		std::from_chars_result result = std::from_chars(b, e, t);
-		if (result.ptr == b) {
-			throw result.ec;
-		}
-
-		return type{t};
-	}
-	*/
-	template<class T>
-	inline auto from_chars(const token_view& p)
-		-> std::enable_if_t<std::is_same<T,float>::type, type>
-	{
-		const auto [b, e] = p;
-
-		return type{strtof(std::string(b, e).c_str(), nullptr)};
-	}
-
-	template<class T>
-	inline auto from_chars(const token_view& p)
-		-> std::enable_if_t<std::is_same<T,double>::type, type>
-	{
-		const auto [b, e] = p;
-
-		return type{strtod(std::string(b, e).c_str(), nullptr)};
-	}
-
-	template<class T>
-	inline auto from_chars(const token_view& p)
-		-> std::enable_if_t<std::is_same<T,void*>::type, type>
-	{
-		const auto [b, e] = p;
-
-		return type{std::string(b, e)};
-	}
-
-	inline type parse(const ffi_type* t, const token_view& p)
-	{
-		const auto [b, e] = p;
-
-		if (&ffi_type_void == t) {
-			return type{}; // monostate
-		}
-		if (&ffi_type_sint == t) {
-			int t;
-
-			std::from_chars_result result = std::from_chars(b, e, t, 0);
-			//!!!check over/under flow
-			if (result.ptr == b) {
-				throw result.ec;
-			}
-
-			return type{t};
-		}
-
-		throw std::runtime_error("ffi::parse: unknown type");
-
-		return type{};
-	}
 
 		/*
 	template<class T>

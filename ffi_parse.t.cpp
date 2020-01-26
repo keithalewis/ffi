@@ -8,6 +8,7 @@
 using namespace ffi;
 
 #define endof(t) ((t + sizeof(t)) - 1)
+
 void print(const token_view& v)
 {
 	write(1, ">", 1);
@@ -15,10 +16,7 @@ void print(const token_view& v)
 	write(1, "<\n", 2);
 }
 
-inline bool equal(const token_view& v, const char* s)
-{
-	return std::equal(v.first, v.second, s, s + strlen(s));
-}
+#define THROWS(e) bool thrown = false; try { e; } catch (const std::exception&) { thrown = true; } assert (thrown)
 
 int test_skip_space()
 {
@@ -51,33 +49,28 @@ int test_next_quote()
 {
 	{
 		char t[] = "a";
-		auto e = next_quote(t, endof(t));
-		assert (e == nullptr);
+		THROWS(next_quote(t, endof(t)));
 	}
 	{
 		char t[] = "\"a";
-		auto e = next_quote(t, endof(t));
-		assert (e == nullptr);
+		THROWS(next_quote(t, endof(t)));
 	}
 	{
 		char t[] = "\" a";
-		auto e = next_quote(t, endof(t));
-		assert (e == nullptr);
+		THROWS(next_quote(t, endof(t)));
 	}
 	{
 		char t[] = "a\"a";
-		auto e = next_quote(t, endof(t));
-		assert (e == nullptr);
+		THROWS(next_quote(t, endof(t)));
 	}
 	{
 		char t[] = "a\" a\"";
-		auto e = next_quote(t, endof(t));
-		assert (e == nullptr);
+		THROWS(next_quote(t, endof(t)));
 	}
 	{
 		char t[] = "\"a \"";
 		auto e = next_quote(t, endof(t));
-		assert (e == endof(t));
+		assert (t + 4 == e);
 	}
 
 	return 0;
@@ -93,13 +86,11 @@ int test_next_match()
 	}
 	{
 		char t[] = "{{";
-		auto e = next_match(t, endof(t));
-		assert (e == nullptr);
+		THROWS(next_match(t, endof(t)));
 	}
 	{
 		char t[] = "{{}";
-		auto e = next_match(t, endof(t));
-		assert (e == nullptr);
+		THROWS(next_match(t, endof(t)));
 	}
 	{
 		char t[] = "{{}}";
@@ -216,7 +207,6 @@ int test_parse_line()
 		assert (v.size() == 3);
 		assert (equal(v[0], "a"));
 		assert (equal(v[1], "\"b c\""));
-		assert (error(v[2]));
 	}
 
 	return 0;

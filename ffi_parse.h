@@ -2,12 +2,28 @@
 #pragma once
 #include <cassert>
 #include <cctype>
+#include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
+#include "ffi_traits.h"
 
 namespace ffi {
 
 	using token_view = std::pair<const char*, const char*>;
+	inline std::string make_string(const token_view& v)
+	{
+		return std::string(v.first, v.second);
+	}
+	inline token_view make_view(const char* s)
+	{
+		return token_view(s, s + strlen(s));
+	}
+
+	inline bool equal(const token_view& v, const char* s)
+	{
+		return std::equal(v.first, v.second, s, s + strlen(s));
+	}
 
 	inline bool empty(const token_view& v)
 	{
@@ -115,10 +131,12 @@ namespace ffi {
 		return token_view(b, e_);
 	}
 
+	using token_list = std::vector<token_view>;
+
 	// vector of token_views, including errors
-	inline std::vector<token_view> parse_line(const char* b, const char* e)
+	inline token_list parse_line(const char* b, const char* e)
 	{
-		std::vector<token_view> v;
+		token_list v;
 
 		token_view t = parse_token(b, e);
 		while (!empty(t)) {
@@ -135,6 +153,30 @@ namespace ffi {
 		}
 
 		return v;
+	}
+
+	inline type parse(const ffi_type* t, const token_view& p)
+	{
+		const auto [b, e] = p;
+
+		if (&ffi_type_void == t) {
+			return type{}; // monostate
+		}
+		if (&ffi_type_sint == t) {
+			int t;
+
+			std::from_chars_result result = std::from_chars(b, e, t, 0);
+			//!!!check over/under flow
+			if (result.ptr == b) {
+				throw result.ec;
+			}
+
+			return type{t};
+		}
+
+		throw std::runtime_error("ffi::parse: unknown type");
+
+		return type{};
 	}
 
 }
