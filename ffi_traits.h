@@ -52,24 +52,32 @@ namespace ffi {
 #undef X
 	};
 
+	inline type make_type(const ffi_type* t)
+	{
+#define X(a,b,c,d) if (t == c) { d x; return type(x); }
+		FFI_TYPE_TABLE(X)
+#undef X
+		throw std::runtime_error("make_type: unknown type");
+	}
+
 	// address of variant alternative
 	struct visitor {
-		const void* operator()(const std::monostate& t) const
+		const void* operator()(std::monostate& t)
 		{
 			return nullptr;
 		}
-		const void* operator()(const std::string& t) const
+	 	const void* operator()(std::string& t)
 		{
-			return t.c_str();
+			return t.data();
 		}
 		template<class T>
-		const void* operator()(const T& t) const
+		const void* operator()(T& t)
 		{
 			return &t;
 		}
 	};
 	// address of current alternative
-	inline const void* address(const type& t)
+	inline const void* address(type& t)
 	{
 		return std::visit(visitor{}, t);
 	}

@@ -173,6 +173,18 @@ namespace ffi {
 
 			return type{t};
 		}
+		if (&ffi_type_double == t) {
+			double t;
+
+			// use b, &e and make sure e = '\n' works ???
+			char* c;
+			t = strtod(make_string(p).c_str(), &c);
+			if (nullptr == c) {
+				throw std::runtime_error("parse: faild to parse double");
+			}
+
+			return type{t};
+		}
 
 		throw std::runtime_error("ffi::parse: unknown type");
 

@@ -288,10 +288,13 @@ Read fun, lookup in dict, push args on stack in reverse order, call fun
 
 dictionary name -> thunk x type
 
-c: int 0
-file: fopen file.txt r
-char: fgetc file
-inspace: bool false
+( a0 a1 ... ) -- array
+[ v0 v1 ... ] -- tuple
+
+: c int 0
+: file fopen file.txt r
+: char fgetc file
+: inspace bool false
 while == char EOF {
 	incr c
 	if == char '\n' {
@@ -316,3 +319,25 @@ printf "%d %d %d\n" l w c
 # Remarks  
   
 Use -- for stack comments and actually check the stack  
+
+## C implementation
+
+-l<xxx> # load lib<xxx>.so/dll
+
++l<xxx> symbol ret types... # add symbol from <xxx> with cif(ret, types...)
+
+symbol args... # evaluate by looking up symbol, pushing args on stack, calling, and push ret on stack
+
+symbol@<n> args... # use temporary cif determined by <n> stack arguments
+
+symbol@<n>.<m> args... # calls a variadic function with <n> fixed args and <m> variable args
+
+symbol!<n> args... # modify cif determined by <n> stack arguments
+
+An arg of the form `@<n>` is replaced by the n-th stack argument.
+
+An arg of the form `!<n>` is replaced by the n-th stack argument, and removed from the stack
+
+: name ... # evaluate ... and assign to name
+
+An arg of the form `{...}` is pushed on the stack as a string.

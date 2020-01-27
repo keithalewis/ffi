@@ -21,7 +21,7 @@ using namespace ffi;
 
 std::map<std::string, ffi::dl> library; // library map;
 std::map<std::string, std::pair<void*,ffi::cif>> dictionary;
-ffi::stack stack;
+ffi::stack stack_;
 
 // convert -lxx to libxx.so
 std::string lib_name(const token_view& v)
@@ -36,6 +36,16 @@ std::string lib_name(const token_view& v)
 	return lib;
 }
 
+ffi_type* get_type(const token_view& v)
+{
+	auto i = type_map.find(make_string(v));
+	if (i == type_map.end()) {
+		throw std::runtime_error("get_type: type not found");
+	}
+
+	return i->second;
+}
+
 void load_library(const token_list& v)
 {
 	// use -lxxx for key. all symbols go in the same dictionary
@@ -43,18 +53,20 @@ void load_library(const token_list& v)
 	if (i == library.end()) {
 		std::string lib = lib_name(v[0]);
 		ffi::dl dl(lib.c_str()); // LAZY???
-		assert (dl);
+		//assert (dl);
 		auto ib = library.insert(std::pair(lib, dl));
 		assert (ib.second);
 		i = ib.first;
 	}
 	auto func = make_string(v[1]);
 	void* sym = i->second.sym(func.c_str());
-	assert (sym);
-	ffi_type* ret = type_map[make_string(v[2])];
+	if (nullptr == sym) {
+		throw std::runtime_error("load_library: symbol not found");
+	}
+	ffi_type* ret = get_type(v[2]);
 	std::vector<ffi_type*> arg;
 	for (size_t i = 3; i < v.size(); ++i) {
-		arg.push_back(type_map[make_string(v[i])]);
+		arg.push_back(get_type(v[i]));
 	}
 	ffi::cif cif(arg, ret);
 	dictionary[func] = std::pair(sym, cif);
@@ -72,9 +84,19 @@ void evaluate(const char* b, const char* e)
 		load_library(v);
 	}
 	else {
-		const auto i = dictionary.find(make_string(v[0]));
-		if (i != dictionary.end()) {
-			
+		const auto d = dictionary.find(make_string(v[0]));
+		if (d != dictionary.end()) {
+			void* f = d->second.first;
+			const ffi::cif& cif = d->second.second;
+			v.erase(v.begin());
+			for (int i = v.size() - 1; i >= 0; --i) {
+				//!! process specials
+				stack_.push(parse(cif.arg_types[i], v[i]));
+			}
+			type r = make_type(cif.rtype);
+			cif.call(f, address(r), stack_.address());
+			stack_.pop(cif.nargs);
+			stack_.push(r);
 		}
 	}
 	// else if v[0] in dictionary

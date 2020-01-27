@@ -52,21 +52,11 @@ To load any C symbol at runtime from a library use
 
 where `return` is the type returned by the function, `type...` are the argument types,
 and  abi` is an optional argument specifying the application binary interface.
+The types are the standard names for C types: `void` (only for return), `int`, `float`, `double`,
+`int<n>_t`, `uint<n>_t`, and `void*` for any pointer type. Each element of the stack is
+a variant of these types.
 
-The `types are limited to ...
-This is all that is needed by assembly code to ...
-
-```
--lm cos double double
-```
-
-Now `cos` can be called in a `ffi` script.
-
-```
-cos 0
-```
-
-The result is pushed onto a stack.
-
-.n pull out the n-th stack item
-,n roll n-th stack item to top
+To use a temporary `cif` based on stack arguments use `name@<n>` where `<n>` is the number
+of stack arguments to use. Use `name!<n>` to also replace the `name` in the dictionary
+with the new `cif`. All variadic functions must be called using `name@<n>.<m>`
+where `<n>` is the number of fixed args and `<m>` is the number of variadic args.
