@@ -324,9 +324,9 @@ Use -- for stack comments and actually check the stack
 
 -l<xxx> # load lib<xxx>.so/dll
 
-+l<xxx> symbol ret types... # add symbol from <xxx> with cif(ret, types...)
++l<xxx> symbol ret types... # add symbol from <xxx> with cif(ret, types...) // default abi
 
-symbol args... # evaluate by looking up symbol, pushing args on stack, calling, and push ret on stack
+symbol args... # evaluate by looking up symbol, pushing args on stack, calling, remove args from stack, and push ret on stack
 
 symbol@<n> args... # use temporary cif determined by <n> stack arguments
 
@@ -340,4 +340,11 @@ An arg of the form `!<n>` is replaced by the n-th stack argument, and removed fr
 
 : name ... # evaluate ... and assign to name
 
-An arg of the form `{...}` is pushed on the stack as a string.
+An arg of the form `{...}` is pushed on the stack as a string.  
+When evaluating `symbol args...` it gets evaluated and the result is pushed on the stack.
+
+### Control Flow
+
+`if ... {...}`
+
+`while ... {...}`

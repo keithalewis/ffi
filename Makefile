@@ -2,6 +2,7 @@ SRCS = ffi.cpp
 TSTS = ffi.t.cpp ffi_parse.t.cpp ffi_traits.t.cpp ffi_dl.t.cpp
 
 CXXFLAGS = -g -std=gnu++17
+CFLAGS = -g
 LDLIBS = -ldl -lffi
 
 ffi: $(SRCS)
