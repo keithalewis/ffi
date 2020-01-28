@@ -1,6 +1,8 @@
 // lac.c - load and call C functions
+#include <cassert>
 #include <ctype.h>
 #include <stdio.h>
+#include "lac.h"
 
 // next non-space character
 int skip_space(FILE* fp)
@@ -81,3 +83,45 @@ int main(int ac, const char* av[])
 
 	return 0;
 }
+
+int test_lacdb()
+{
+puts("test_lacdb");
+	int ret;
+	lacdb db = lacdb_alloc(); 
+
+	char k[] = "key";
+	char v[] = "val";
+	lacdb_datum key = lacdb_make_datum(k);
+	lacdb_datum val = lacdb_make_datum(v);
+	ret = lacdb_insert(db, &key, &val);
+	assert (ret);
+
+	lacdb_datum val1 = lacdb_find(db, &key); 
+	assert (val1.size == val.size);
+	assert (0 == strncmp(val1.data, val.data, val.size));
+
+	char v1[] = "val1";
+	val1 = lacdb_make_datum(v1);
+	ret = lacdb_replace(db, &key, &val1);
+	assert (ret);
+
+	lacdb_datum val2 = lacdb_find(db, &key); 
+	assert (val2.size == val1.size);
+	assert (0 == strncmp(val2.data, val1.data, val1.size));
+
+	val2 = lacdb_find(db, &val2); 
+	assert (val2.size == 0);
+	assert (val2.data == nullptr);
+
+	ret = lacdb_erase(db, &key);
+	assert (ret);
+	val1 = lacdb_find(db, &key); 
+	assert (val1.size == 0);
+	assert (val1.data == nullptr);
+
+	lacdb_free(db);
+
+	return 0;
+}
+int test_lacdb_ = test_lacdb(); 

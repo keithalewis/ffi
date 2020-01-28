@@ -2,7 +2,7 @@ SRCS = ffi.cpp
 TSTS = ffi.t.cpp ffi_parse.t.cpp ffi_traits.t.cpp ffi_dl.t.cpp
 
 CXXFLAGS = -g -std=gnu++17
-CFLAGS = -g
+CFLAGS = -g -std=gnu++17
 LDLIBS = -ldl -lffi
 
 ffi: $(SRCS)
@@ -20,3 +20,6 @@ clean:
 ffi: ffi.cpp ffi_cif.h ffi_traits.h ffi_parse.h
 
 ffi.t: ffi.t.cpp ffi_parse.t.cpp ffi_parse.h ffi_dl.t.cpp ffi_dl.h ffi_parse.t.cpp ffi_parse.h
+
+lac: lac.c lacdb.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDLIBS)
