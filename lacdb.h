@@ -28,12 +28,14 @@ inline lacdb_datum lacdb_make_datum(char* s)
 }
 
 typedef void* lacdb;
+
 lacdb lacdb_alloc(); // returns std::map<K,V>*
 void lacdb_free(lacdb);
 int lacdb_insert(lacdb, lacdb_key, lacdb_val);
 int lacdb_replace(lacdb, lacdb_key, lacdb_val);
 lacdb_datum lacdb_find(lacdb, lacdb_key);
 int lacdb_erase(lacdb, lacdb_key);
+/* first and next ??? */
 
 #ifdef __cplusplus 
 }
