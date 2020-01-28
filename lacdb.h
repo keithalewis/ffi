@@ -1,6 +1,7 @@
 /* lacdb.h - key-value database */
 #pragma once
 #include <string.h>
+#include <gdbm.h>
 
 #ifdef __cplusplus 
 extern "C" {

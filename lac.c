@@ -1,21 +1,72 @@
 // lac.c - load and call C functions
 #include <cassert>
 #include <ctype.h>
+#include <dlfcn.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <gdbm.h>
 #include "lac.h"
 
-// next non-space character
-int skip_space(FILE* fp)
-{
-	int c = EOF;
+// use setjmp/longjmp for error handling
 
-	while (EOF != (c = fgetc(fp))) {
-		if (!isspace(c)) {
-			break;
-		}
+// gdbm specific
+GDBM_FILE dictionary = 0;
+inline datum make_datum(char* s)
+{	
+	datum d;
+
+	d.dptr = s;
+	d.dsize = (int)strlen(s);
+
+	return d;
+}
+void dbm_open(void)
+{
+	dictionary = gdbm_open("dictionary.gdb", 0, GDBM_WRCREAT, 0664, 0);
+	if (0 == dictionary) {
+		fputs(gdbm_strerror(gdbm_last_errno(dictionary)), stderr);
+
+		exit(-1);
+	}
+}
+void dbm_close()
+{
+	if (dictionary) {
+		gdbm_close(dictionary);
+	}
+}
+
+// view into line buffer
+struct token_view {
+	char* b;
+	char* e;
+};
+// copy stream into static buffer and return view
+token_view get_token(FILE* fp)
+{
+	int c;
+	static char token[1024];
+	token_view t = {token, token};
+
+	c = fgetc(fp);
+	while (c != EOF && isspace(c)) {
+		c = fgetc(fp);
 	}
 
-	return c;
+	if (EOF == c) {
+		abort(); // maybe
+	}
+
+	*t.e = (char)c;
+	c = fgetc(fp);
+	while (EOF != c && !isspace(c)) {
+		*++t.e = (char)c;
+		if (t.e - t.b >= sizeof(token))
+			abort();
+	}
+
+	return t;
 }
 
 void evaluate_line(FILE* fp)
@@ -28,6 +79,20 @@ void evaluate_line(FILE* fp)
 
 void load_symbol(FILE* fp)
 {
+	int c;
+	char key[64] = "-";
+	c = fgetc(fp);
+	assert (c == 'l');
+	strcat(key, "l");
+	c = fgetc(fp);
+	while (c != EOF && !isspace(c)) {
+		strncat(key, (char*)&c, 1);
+	}
+	if (c == EOF) {
+		exit(EOF);
+	}
+	c = skip_space(fp);
+	char sym[64] = {(char)c,0};
 	// get library name +xx -> lib
 	// get symbol name
 	// parse remaining args for cif
@@ -41,22 +106,38 @@ void add_dictionary(FILE* fp)
 	// add to dictionary
 }
 
+// "-lxxx" -> dlopen("libxxx.so")
 void load_library(FILE* fp)
 {
-	// get library name -lxx -> libxx.so/dll
-	// add to library dictionary
+	int c;
+	char key[64] = "-";
+	char lib[1024] = "lib";
+
+	c = fgetc(fp);
+	assert (c == 'l');
+	strncat(key, (char*)&c, 1);
+	
+	c = fgetc(fp);
+	while (c != EOF && !isspace(c)) {
+		strncat(key, (char*)&c, 1);
+		strncat(lib, (char*)&c, 1);
+		c = fgetc(fp);
+	}
+
+	if (c == EOF) {
+		exit(EOF);
+	}
+	
+	strcat(lib, ".so");
+	void* h = dlopen(lib, RTLD_NOW);
+	int ret = gdbm_store(dictionary, make_datum(key), datum{(char*)h, (int)sizeof(void*)}, GDBM_REPLACE);
 }
 
 void evaluate(FILE* fp)
 {
-	int c;
+	token_view t = get_token(fp);
 
-	c = skip_space(fp);
-
-	if (EOF == c)
-		return;
-
-	switch (c) {
+	switch (*t.b) {
 		case '-':
 			load_library(fp);
 			break;
@@ -77,51 +158,33 @@ int main(int ac, const char* av[])
 {
 	// process args
 	FILE* fp = stdin;
+	dbm_open();
 
 	// setjmp/longjmp for error handling
 	evaluate(fp);
 
+	dbm_close();
+
 	return 0;
 }
 
-int test_lacdb()
+int test_foo()
 {
-puts("test_lacdb");
-	int ret;
-	lacdb db = lacdb_alloc(); 
-
-	char k[] = "key";
-	char v[] = "val";
-	lacdb_datum key = lacdb_make_datum(k);
-	lacdb_datum val = lacdb_make_datum(v);
-	ret = lacdb_insert(db, &key, &val);
-	assert (ret);
-
-	lacdb_datum val1 = lacdb_find(db, &key); 
-	assert (val1.size == val.size);
-	assert (0 == strncmp(val1.data, val.data, val.size));
-
-	char v1[] = "val1";
-	val1 = lacdb_make_datum(v1);
-	ret = lacdb_replace(db, &key, &val1);
-	assert (ret);
-
-	lacdb_datum val2 = lacdb_find(db, &key); 
-	assert (val2.size == val1.size);
-	assert (0 == strncmp(val2.data, val1.data, val1.size));
-
-	val2 = lacdb_find(db, &val2); 
-	assert (val2.size == 0);
-	assert (val2.data == nullptr);
-
-	ret = lacdb_erase(db, &key);
-	assert (ret);
-	val1 = lacdb_find(db, &key); 
-	assert (val1.size == 0);
-	assert (val1.data == nullptr);
-
-	lacdb_free(db);
+	{
+		const char buf[] = "1.23\n";
+		char* e;
+		double d = strtod(buf, &e);
+		assert (d == 1.23);
+		assert (*e == '\n');
+	}
+	{
+		const char buf[] = "1.23 ";
+		char* e;
+		double d = strtod(buf, &e);
+		assert (d == 1.23);
+		assert (*e == ' ');
+	}
 
 	return 0;
 }
-int test_lacdb_ = test_lacdb(); 
+int test_foo_ = test_foo();
