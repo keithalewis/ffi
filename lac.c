@@ -1,7 +1,8 @@
 // lac.c - load and call C functions
-#include <cassert>
+#include <assert.h>
 #include <ctype.h>
 #include <dlfcn.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,63 +11,15 @@
 
 // use setjmp/longjmp for error handling
 
-// gdbm specific
-GDBM_FILE dictionary = 0;
-inline datum make_datum(char* s)
-{	
-	datum d;
+lac_dbm dictionary;
+lac_dbm library;
 
-	d.dptr = s;
-	d.dsize = (int)strlen(s);
 
-	return d;
-}
-void dbm_open(void)
+lac_stack stack = (lac_stack){STACK_SIZE - 1, STACK_SIZE - 1};
+
+inline lac_datum make_datum(token_view t)
 {
-	dictionary = gdbm_open("dictionary.gdb", 0, GDBM_WRCREAT, 0664, 0);
-	if (0 == dictionary) {
-		fputs(gdbm_strerror(gdbm_last_errno(dictionary)), stderr);
-
-		exit(-1);
-	}
-}
-void dbm_close()
-{
-	if (dictionary) {
-		gdbm_close(dictionary);
-	}
-}
-
-// view into line buffer
-struct token_view {
-	char* b;
-	char* e;
-};
-// copy stream into static buffer and return view
-token_view get_token(FILE* fp)
-{
-	int c;
-	static char token[1024];
-	token_view t = {token, token};
-
-	c = fgetc(fp);
-	while (c != EOF && isspace(c)) {
-		c = fgetc(fp);
-	}
-
-	if (EOF == c) {
-		abort(); // maybe
-	}
-
-	*t.e = (char)c;
-	c = fgetc(fp);
-	while (EOF != c && !isspace(c)) {
-		*++t.e = (char)c;
-		if (t.e - t.b >= sizeof(token))
-			abort();
-	}
-
-	return t;
+	return (lac_datum){t.b, t.e - t.b};
 }
 
 void evaluate_line(FILE* fp)
@@ -91,7 +44,7 @@ void load_symbol(FILE* fp)
 	if (c == EOF) {
 		exit(EOF);
 	}
-	c = skip_space(fp);
+	//c = skip_space(fp);
 	char sym[64] = {(char)c,0};
 	// get library name +xx -> lib
 	// get symbol name
@@ -130,12 +83,15 @@ void load_library(FILE* fp)
 	
 	strcat(lib, ".so");
 	void* h = dlopen(lib, RTLD_NOW);
-	int ret = gdbm_store(dictionary, make_datum(key), datum{(char*)h, (int)sizeof(void*)}, GDBM_REPLACE);
+	int ret = lac_dbm_replace(dictionary, (lac_datum){key, strlen(key)-1}, (lac_datum){(char*)h, (int)sizeof(void*)});
 }
 
 void evaluate(FILE* fp)
 {
 	token_view t = get_token(fp);
+
+	if (token_view_empty(t))
+		return;
 
 	switch (*t.b) {
 		case '-':
@@ -156,35 +112,20 @@ void evaluate(FILE* fp)
 
 int main(int ac, const char* av[])
 {
+	FILE* fp;
+
 	// process args
-	FILE* fp = stdin;
-	dbm_open();
+	fp = ac > 1 ? fopen(av[1], "r") : stdin;
+	assert (fp);
+
+	dictionary = lac_dbm_open("dictionary");
+	library = lac_dbm_open("library");
 
 	// setjmp/longjmp for error handling
 	evaluate(fp);
 
-	dbm_close();
+	lac_dbm_close(library);
+	lac_dbm_close(dictionary);
 
 	return 0;
 }
-
-int test_foo()
-{
-	{
-		const char buf[] = "1.23\n";
-		char* e;
-		double d = strtod(buf, &e);
-		assert (d == 1.23);
-		assert (*e == '\n');
-	}
-	{
-		const char buf[] = "1.23 ";
-		char* e;
-		double d = strtod(buf, &e);
-		assert (d == 1.23);
-		assert (*e == ' ');
-	}
-
-	return 0;
-}
-int test_foo_ = test_foo();
